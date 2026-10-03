@@ -40,5 +40,15 @@ jobs:
             echo "Inget nytt att committa."
           else
             git commit -m "Veckokörning $(date -u +%Y-%m-%d)"
-            git push
+            # Grenen kan ha flyttat sig sedan checkout (en re-run, eller en
+            # push under tiden). Hämta in det och försök igen i stället för
+            # att falla på en icke-snabbspolad push.
+            for forsok in 1 2 3; do
+              git pull --rebase --autostash origin "$GITHUB_REF_NAME" \
+                && git push && exit 0
+              echo "Push misslyckades (försök $forsok), gör om."
+              sleep 5
+            done
+            echo "Kunde inte pusha efter tre försök."
+            exit 1
           fi

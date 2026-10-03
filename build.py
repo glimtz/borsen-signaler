@@ -17,8 +17,10 @@ from datetime import date, datetime, timezone
 import pandas as pd
 import yfinance as yf
 
+from makro import hamta_makro
 from universe import (
-    BASKETS, BENCHMARK, CYKLISKA, DEFENSIVA, FX_USDSEK, SINGLES, US_SEKTORER,
+    BASKETS, BENCHMARK, BENCHMARK_PER_GRUPP, CYKLISKA, DEFENSIVA, FX_USDSEK,
+    JAMFORELSEINDEX, SINGLES, US_SEKTORER,
 )
 
 LOOKBACK = "2y"
@@ -26,7 +28,9 @@ SPARK_DAGAR = 126          # ett halvårs dagliga punkter till sparklinen
 MIN_DAGAR = 480            # en konstituent behöver nästan hela tvåårsfönstret
 FONSTER = {"r1w": 5, "r1m": 21, "r3m": 63, "r6m": 126, "r12m": 252}
 MA_FONSTER = [20, 50, 100, 150, 200]
-VIKTER = {"r1m": 0.20, "r3m": 0.30, "r6m": 0.30, "r12m": 0.20}
+# Långsiktig profil: tyngdpunkten ligger på halvår och år, inte på senaste månaden.
+# Det gör rangordningen trögare och minskar frestelsen att flytta kapital varje vecka.
+VIKTER = {"r1m": 0.10, "r3m": 0.25, "r6m": 0.35, "r12m": 0.30}
 
 varningar: list[str] = []
 
@@ -57,14 +61,7 @@ def alla_tickers() -> list[str]:
 
 # ------------------------------------------------------------ serieuppbygg
 
-def i_sek(serie: pd.Series, valuta: str, fx: pd.Series) -> pd.Series:
-    if valuta == "SEK":
-        return serie
-    return (serie * fx).dropna()
-
-
-def korg(df: pd.DataFrame, tickers: list[str], namn: str,
-         valuta: str, fx: pd.Series) -> pd.Series | None:
+def korg(df: pd.DataFrame, tickers: list[str], namn: str) -> pd.Series | None:
     """Likaviktat index: varje bolag normaliserat till 100 vid första gemensamma dagen."""
     finns = [t for t in tickers if t in df.columns and df[t].notna().sum() >= MIN_DAGAR]
     saknas = [t for t in tickers if t not in finns]
@@ -73,7 +70,7 @@ def korg(df: pd.DataFrame, tickers: list[str], namn: str,
     if len(finns) < 2:
         varningar.append(f"{namn}: för få bolag med data ({len(finns)}) — korgen utelämnas")
         return None
-    bit = pd.concat({t: i_sek(df[t].dropna(), valuta, fx) for t in finns}, axis=1).dropna()
+    bit = df[finns].dropna()
     if bit.empty:
         varningar.append(f"{namn}: inga gemensamma handelsdagar — korgen utelämnas")
         return None
@@ -82,26 +79,23 @@ def korg(df: pd.DataFrame, tickers: list[str], namn: str,
 
 def bygg_serier() -> dict[str, dict]:
     df = hamta(alla_tickers())
-    if FX_USDSEK not in df.columns:
-        raise SystemExit("Saknar växelkurs USD/SEK — avbryter utan att skriva något.")
-    fx = df[FX_USDSEK].ffill().dropna()
+    if FX_USDSEK in df.columns:
+        df[FX_USDSEK] = df[FX_USDSEK].ffill()
 
     ut: dict[str, dict] = {}
     for nyckel, (namn, grupp, ticker, valuta) in SINGLES.items():
         if ticker not in df.columns or df[ticker].notna().sum() < 200:
             varningar.append(f"{namn} ({ticker}): för lite data — utelämnas")
             continue
-        s = i_sek(df[ticker].dropna(), valuta, fx)
-        if len(s) < 200:
-            varningar.append(f"{namn}: för kort serie efter SEK-omräkning — utelämnas")
-            continue
-        ut[nyckel] = {"namn": namn, "grupp": grupp, "serie": s, "innehall": [ticker]}
+        s = df[ticker].dropna()
+        ut[nyckel] = {"namn": namn, "grupp": grupp, "serie": s,
+                      "innehall": [ticker], "valutakod": valuta}
 
     for nyckel, (namn, grupp, tickers, valuta) in BASKETS.items():
-        s = korg(df, tickers, namn, valuta, fx)
+        s = korg(df, tickers, namn)
         if s is None or len(s) < 200:
             continue
-        ut[nyckel] = {"namn": namn, "grupp": grupp, "serie": s,
+        ut[nyckel] = {"namn": namn, "grupp": grupp, "serie": s, "valutakod": valuta,
                       "innehall": [t for t in tickers if t in df.columns]}
     return ut
 
@@ -135,7 +129,8 @@ def berakna(serier: dict[str, dict]) -> list[dict]:
         s = post["serie"]
         px = float(s.iloc[-1])
         r = {"ticker": nyckel, "namn": post["namn"], "grupp": post["grupp"],
-             "innehall": post["innehall"], "pris": round(px, 2)}
+             "innehall": post["innehall"], "valutakod": post["valutakod"],
+             "pris": round(px, 2)}
         for fält, n in FONSTER.items():
             r[fält] = avkastning(s, n)
         for n in MA_FONSTER:
@@ -155,10 +150,14 @@ def berakna(serier: dict[str, dict]) -> list[dict]:
         r["serie"] = [round(float(v), 2) for v in s.iloc[-SPARK_DAGAR:]]
         rader.append(r)
 
-    bench = next((r for r in rader if r["ticker"] == BENCHMARK), None)
-    if bench is None:
+    index = {r["ticker"]: r for r in rader}
+    if BENCHMARK not in index:
         raise SystemExit(f"Jämförelseindex {BENCHMARK} saknas — avbryter utan att skriva något.")
     for r in rader:
+        # jämför mot ett index i samma valuta, så relativ styrka blir valutafri
+        bnyckel = BENCHMARK_PER_GRUPP.get(r["grupp"], BENCHMARK)
+        bench = index.get(bnyckel) or index[BENCHMARK]
+        r["jamfors_mot"] = bench["namn"]
         for horisont in ("r1m", "r3m", "r6m"):
             a, b = r.get(horisont), bench.get(horisont)
             r["rs" + horisont[1:]] = None if a is None or b is None else round(a - b, 2)
@@ -178,6 +177,11 @@ def berakna(serier: dict[str, dict]) -> list[dict]:
             r["trend"], r["trendscore"] = "Stark nedtrend", -2
         else:
             r["trend"], r["trendscore"] = "Nedtrend", -1
+
+    # Valutaraden är kontext, inte ett innehav: den rankas inte och påverkar
+    # inte heller de andras percentiler.
+    kontext = [r for r in rader if r["grupp"] == "Valuta"]
+    rader = [r for r in rader if r["grupp"] != "Valuta"]
 
     # Styrka: percentilrang över hela listan, tyngdpunkt på 3 och 6 månader
     for fält, vikt in VIKTER.items():
@@ -210,7 +214,7 @@ def berakna(serier: dict[str, dict]) -> list[dict]:
             r["signal"], r["signalkod"] = "NEUTRAL", 0
 
         x, y = r.get("rs3m"), r.get("rs1m")
-        if r["ticker"] == BENCHMARK:
+        if r["ticker"] in JAMFORELSEINDEX:
             r["kvadrant"] = "Jämförelseindex"
         elif x is None or y is None:
             r["kvadrant"] = "Okänd"
@@ -222,7 +226,13 @@ def berakna(serier: dict[str, dict]) -> list[dict]:
             r["kvadrant"] = "Eftersläpande"
         else:
             r["kvadrant"] = "Förbättras"
-    return rader
+
+    for r in kontext:
+        r["rank"] = None
+        r["styrka"] = None
+        r["signal"], r["signalkod"] = "KONTEXT", 0
+        r["kvadrant"] = "Kontext"
+    return rader + kontext
 
 
 # ------------------------------------------------------------------ utdata
@@ -242,7 +252,7 @@ def main() -> None:
     ut = {
         "asof": pd.Timestamp(sista).strftime("%Y-%m-%d"),
         "uppdaterad": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-        "valuta": "SEK",
+        "valuta": "lokal",
         "fonster_dagar": int(max(len(p["serie"]) for p in serier.values())),
         "bredd": {
             "sektorer_over_ma50": sum(1 for r in sektorer if (r["px_ma50"] or 0) > 0),
@@ -255,6 +265,15 @@ def main() -> None:
         "rader": rader,
     }
 
+    try:
+        makro = hamta_makro()
+    except Exception as fel:                     # makro får aldrig fälla bygget
+        makro, _ = None, varningar.append(f"Makrohämtningen fallerade: {fel}")
+    if makro:
+        ut["makro"] = makro
+    else:
+        varningar.append("Makrodata från FRED kunde inte hämtas — regimen utelämnas.")
+
     os.makedirs("data/history", exist_ok=True)
     with open("data/latest.json", "w", encoding="utf-8") as f:
         json.dump(ut, f, ensure_ascii=False, separators=(",", ":"))
@@ -263,6 +282,11 @@ def main() -> None:
 
     print(f"{len(rader)} instrument, kursdata till {ut['asof']}, "
           f"{ut['bredd']['sektorer_over_ma150']}/{ut['bredd']['antal_sektorer']} sektorer över MA150")
+    if ut.get("makro"):
+        m = ut["makro"]
+        print(f"Regim: {m['regim']} | 10y {m.get('nominell10',{}).get('niva')} % "
+              f"| realränta {m.get('real10',{}).get('niva')} % "
+              f"| breakeven {m.get('breakeven10',{}).get('niva')} %")
     for v in varningar:
         print("VARNING:", v)
 

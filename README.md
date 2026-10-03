@@ -1,7 +1,7 @@
 # Branschkompass — dataunderlag
 
 Hämtar kursdata och räknar fram relativ styrka och trendläge för 29 branscher,
-regioner och råvaror. Resultatet hamnar i `data/latest.json`, som dashboarden
+regioner och råvaror, plus växelkursen USD/SEK som kontextrad. Resultatet hamnar i `data/latest.json`, som dashboarden
 i Claude läser varje vecka.
 
 ## Vad som körs
@@ -21,6 +21,7 @@ beräknar måtten nedan och committar `data/latest.json` plus en daterad kopia i
 | SE-bransch | Sju likaviktade korgar av Stockholmsbolag: verkstad, bank & finans, fastigheter, telekom & IT, hälsovård, konsument, investmentbolag |
 | Region | SPY, EFA, EEM, EWJ, EWD, OMXS30 |
 | Råvara/Ränta | Guld, silver, olja, koppar, lång US-statsobligation |
+| Valuta | USD/SEK — rankas inte och påverkar inte de andras percentiler, den finns som kontext |
 
 Listan ändras i `universe.py`. En korg behöver minst två bolag med data för att
 tas med; bolag som saknas hamnar i `varningar` i utdatan i stället för att
@@ -28,15 +29,18 @@ stoppa körningen.
 
 ## Måtten
 
-Allt räknas i **SEK** — USD-noterade instrument multipliceras med USD/SEK innan
-avkastningen beräknas, så siffrorna är den avkastning en svensk investerare
-faktiskt fått.
+Allt mäts i **instrumentets egen valuta** — amerikanska poster i dollar, svenska i
+kronor. Det ger rena marknadssignaler utan valutabrus, men avkastningstalen är
+därmed inte den avkastning en svensk investerare fått på ett ovalutasäkrat
+innehav. Raden USD/SEK visar hur stor den skillnaden är.
 
 - **Avkastning** över 1 vecka, 1, 3, 6 och 12 månader (5/21/63/126/252 handelsdagar).
 - **Glidande medelvärden** MA20, MA50, MA100, MA150, MA200, samt lutningen på
   MA150 den senaste månaden.
 - **Läge i 52 veckor** — var priset står i det senaste årets intervall.
-- **Relativ styrka** mot SPY över 1, 3 och 6 månader.
+- **Relativ styrka** över 1, 3 och 6 månader mot ett index i samma valuta:
+  svenska branscher mot OMXS30, övriga mot SPY. Den siffran är därmed helt fri
+  från växelkursen.
 - **Trend** — MA50 mot MA150 är primärfiltret. MA150 motsvarar Weinsteins
   30-veckorssnitt och är anpassat till den takt branscher roterar i.
   *Stark upptrend* kräver pris över båda och stigande MA150.
@@ -57,7 +61,7 @@ python build.py
 
 ## Om något går fel
 
-Jobbet avbryter utan att skriva något om yfinance inte svarar alls, om
-växelkursen saknas eller om jämförelseindexet SPY saknas — hellre gammal data i
+Jobbet avbryter utan att skriva något om yfinance inte svarar alls eller om
+jämförelseindexet SPY saknas — hellre gammal data i
 dashboarden än halv data. Enskilda tickers som fallerar utelämnas och listas i
 `varningar`, som visas i dashboarden.

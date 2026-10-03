@@ -1,8 +1,10 @@
 """Bevakningslistan för Branschkompass.
 
 Varje post är antingen en enskild ticker eller en likaviktad korg.
-`valuta` avgör om serien räknas om till SEK innan avkastning beräknas —
-allt jämförs i SEK, eftersom det är den avkastning Leif faktiskt får.
+Allt mäts i instrumentets EGEN valuta — amerikanska poster i dollar, svenska i
+kronor. Det ger rena marknadssignaler utan valutabrus, men avkastningstalen är
+alltså inte den avkastning en svensk investerare fått. USD/SEK finns med som en
+egen rad så att valutaeffekten går att se och väga in.
 """
 
 # Enskilda instrument: nyckel -> (namn, grupp, yahoo-ticker, valuta)
@@ -26,6 +28,8 @@ SINGLES = {
     "EWD":  ("Sverige (EWD)",           "Region",       "EWD",  "USD"),
     "OMX":  ("OMXS30",                  "Region",       "^OMX", "SEK"),
 
+    "USDSEK": ("USD/SEK",             "Valuta",       "SEK=X", "SEK"),
+
     "GLD":  ("Guld",                    "Råvara/Ränta", "GLD",  "USD"),
     "SLV":  ("Silver",                  "Råvara/Ränta", "SLV",  "USD"),
     "USO":  ("Olja (WTI)",              "Råvara/Ränta", "USO",  "USD"),
@@ -45,10 +49,13 @@ BASKETS = {
     "SE_INVEST":   ("Investmentbolag",  "SE-bransch", ["INVE-B.ST", "LATO-B.ST", "INDU-C.ST", "KINV-B.ST"],        "SEK"),
 }
 
-# Jämförelseindex för relativ styrka (i SEK)
-BENCHMARK = "SPY"
+# Jämförelseindex för relativ styrka. Varje post jämförs mot ett index i SAMMA
+# valuta, så att relativ styrka blir helt fri från växelkursen.
+BENCHMARK = "SPY"                      # förval, och det index rangordningen utgår från
+BENCHMARK_PER_GRUPP = {"SE-bransch": "OMX"}
+JAMFORELSEINDEX = {"SPY", "OMX"}       # får kvadranten "Jämförelseindex"
 
-# Växelkurs USD -> SEK
+# Växelkursen hämtas som ett vanligt instrument (USDSEK ovan)
 FX_USDSEK = "SEK=X"
 
 # Grupper som räknas som cykliska respektive defensiva i breddmåttet
