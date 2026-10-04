@@ -30,12 +30,25 @@ SINGLES = {
 
     "USDSEK": ("USD/SEK",             "Valuta",       "SEK=X", "SEK"),
 
+    "ACWI": ("Världsindex (ACWI)",     "Region",       "ACWI",  "USD"),
+
     "GLD":  ("Guld",                    "Råvara/Ränta", "GLD",  "USD"),
     "SLV":  ("Silver",                  "Råvara/Ränta", "SLV",  "USD"),
     "USO":  ("Olja (WTI)",              "Råvara/Ränta", "USO",  "USD"),
     "CPER": ("Koppar",                  "Råvara/Ränta", "CPER", "USD"),
     "TLT":  ("Lång US-statsobligation", "Råvara/Ränta", "TLT",  "USD"),
 }
+
+# Enskilda värdepapper Leif äger och vill följa direkt i stället för via ombud.
+# De rankas med i listan men föreslås aldrig som nya köp — den regeln ligger i
+# veckouppgiften, inte här.
+INNEHAV_SINGLES = {
+    "AZN_ST": ("AstraZeneca",   "Innehav", "AZN.ST",    "SEK"),
+    "NDA_ST": ("Nordea",        "Innehav", "NDA-SE.ST", "SEK"),
+    "CRWV":   ("CoreWeave",     "Innehav", "CRWV",      "USD"),
+    "ZIM":    ("ZIM Shipping",  "Innehav", "ZIM",       "USD"),
+}
+SINGLES.update(INNEHAV_SINGLES)
 
 # Svenska branschkorgar: nyckel -> (namn, grupp, [tickers], valuta)
 # Likaviktade index, varje bolag normaliserat till 100 vid periodens start.
@@ -52,7 +65,10 @@ BASKETS = {
 # Jämförelseindex för relativ styrka. Varje post jämförs mot ett index i SAMMA
 # valuta, så att relativ styrka blir helt fri från växelkursen.
 BENCHMARK = "SPY"                      # förval, och det index rangordningen utgår från
-BENCHMARK_PER_GRUPP = {"SE-bransch": "OMX"}
+# Valutan avgör i första hand — allt i kronor jämförs mot OMXS30, resten mot SPY.
+# Det gör relativ styrka valutafri även för enskilda svenska aktier.
+BENCHMARK_PER_VALUTA = {"SEK": "OMX"}
+BENCHMARK_PER_GRUPP = {}               # grupp-specifika undantag, om det behövs
 JAMFORELSEINDEX = {"SPY", "OMX"}       # får kvadranten "Jämförelseindex"
 
 # Växelkursen hämtas som ett vanligt instrument (USDSEK ovan)

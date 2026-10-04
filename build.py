@@ -19,8 +19,8 @@ import yfinance as yf
 
 from makro import hamta_makro
 from universe import (
-    BASKETS, BENCHMARK, BENCHMARK_PER_GRUPP, CYKLISKA, DEFENSIVA, FX_USDSEK,
-    JAMFORELSEINDEX, SINGLES, US_SEKTORER,
+    BASKETS, BENCHMARK, BENCHMARK_PER_GRUPP, BENCHMARK_PER_VALUTA, CYKLISKA,
+    DEFENSIVA, FX_USDSEK, JAMFORELSEINDEX, SINGLES, US_SEKTORER,
 )
 
 LOOKBACK = "2y"
@@ -162,7 +162,8 @@ def berakna(serier: dict[str, dict], kalendrar: dict[str, list[str]]) -> list[di
         raise SystemExit(f"Jämförelseindex {BENCHMARK} saknas — avbryter utan att skriva något.")
     for r in rader:
         # jämför mot ett index i samma valuta, så relativ styrka blir valutafri
-        bnyckel = BENCHMARK_PER_GRUPP.get(r["grupp"], BENCHMARK)
+        bnyckel = (BENCHMARK_PER_GRUPP.get(r["grupp"])
+                   or BENCHMARK_PER_VALUTA.get(r.get("valutakod"), BENCHMARK))
         bench = index.get(bnyckel) or index[BENCHMARK]
         r["jamfors_mot"] = bench["namn"]
         for horisont in ("r1m", "r3m", "r6m"):
