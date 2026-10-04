@@ -1,4 +1,4 @@
 # Skriv datum har (YYYY-MM-DD, ett per rad eller kommaseparerade) och pusha.
-# Jobbet bygger da bilden som den sag ut de morgnarna och skriver till
-# data/history/. Datum som redan finns dar hoppas over, sa filen kan sta kvar.
-2026-08-31
+# Datum som redan finns i data/history/ hoppas over, sa listan kan sta kvar.
+# Satt ! framfor ett datum for att bygga om det anda.
+!2026-08-31

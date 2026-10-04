@@ -326,10 +326,12 @@ if __name__ == "__main__":
     datum = [d.strip() for d in ap.parse_args().asof.split(",") if d.strip()]
     if datum:
         for d in datum:
-            if os.path.exists(f"data/history/{d}.json"):
-                print(f"--- {d} finns redan, hoppar over ---")
+            tvinga = d.startswith("!")       # ! framfor datumet bygger om det
+            d = d.lstrip("!")
+            if os.path.exists(f"data/history/{d}.json") and not tvinga:
+                print(f"--- {d} finns redan, hoppar over (satt ! framfor for omkorning) ---")
                 continue
-            print(f"--- rekonstruerar {d} ---")
+            print(f"--- rekonstruerar {d}{' (tvingad omkorning)' if tvinga else ''} ---")
             main(d)
     else:
         main()
