@@ -5,6 +5,14 @@ on:
     # Måndagar 05:10 UTC ≈ 07:10 svensk sommartid, 06:10 vintertid.
     # Fredagens stängning i USA är klar sedan länge.
     - cron: "10 5 * * 1"
+  # Varje push av kod kör jobbet direkt, så en ändring aldrig behöver startas
+  # för hand. Botens egna datacommits triggar inget: dels är data/ undantaget,
+  # dels startar GitHub aldrig ett flöde från en commit gjord med GITHUB_TOKEN.
+  push:
+    branches: [main]
+    paths-ignore:
+      - "data/**"
+      - "README.md"
   workflow_dispatch:
 
 permissions:
