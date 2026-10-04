@@ -25,7 +25,8 @@ from universe import (
 
 LOOKBACK = "2y"
 SPARK_DAGAR = 126          # ett halvårs dagliga punkter till sparklinen
-MIN_DAGAR = 480            # en konstituent behöver nästan hela tvåårsfönstret
+MIN_ANDEL = 0.92           # en konstituent behöver nästan hela fönstret...
+MIN_DAGAR_GOLV = 200       # ...men aldrig färre dagar än så här
 FONSTER = {"r1w": 5, "r1m": 21, "r3m": 63, "r6m": 126, "r12m": 252}
 MA_FONSTER = [20, 50, 100, 150, 200]
 # Långsiktig profil: tyngdpunkten ligger på halvår och år, inte på senaste månaden.
@@ -62,8 +63,13 @@ def alla_tickers() -> list[str]:
 # ------------------------------------------------------------ serieuppbygg
 
 def korg(df: pd.DataFrame, tickers: list[str], namn: str) -> pd.Series | None:
-    """Likaviktat index: varje bolag normaliserat till 100 vid första gemensamma dagen."""
-    finns = [t for t in tickers if t in df.columns and df[t].notna().sum() >= MIN_DAGAR]
+    """Likaviktat index: varje bolag normaliserat till 100 vid första gemensamma dagen.
+
+    Kravet på datatäckning är en ANDEL av fönstret, inte ett absolut antal
+    dagar. En rekonstruktion klipper bort slutet av serien, och med ett fast
+    tak föll korgarna då ur listan trots att deras data var lika komplett."""
+    krav = max(MIN_DAGAR_GOLV, int(len(df) * MIN_ANDEL))
+    finns = [t for t in tickers if t in df.columns and df[t].notna().sum() >= krav]
     saknas = [t for t in tickers if t not in finns]
     if saknas:
         varningar.append(f"{namn}: ingen användbar data för {', '.join(saknas)}")
