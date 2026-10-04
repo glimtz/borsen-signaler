@@ -111,9 +111,17 @@ def _aratakt(nivaserie: pd.Series | None) -> float | None:
     return round(float(nivaserie.iloc[-1] / nivaserie.iloc[-13] - 1) * 100, 2)
 
 
-def hamta_makro() -> dict | None:
+def hamta_makro(asof: str | None = None) -> dict | None:
+    """asof = bygg bilden som den såg ut den morgonen; bara observationer
+    FÖRE det datumet används. Serierna revideras i efterhand, så en
+    rekonstruktion blir nära men inte identisk med en körning i realtid."""
     varningar_makro: list[str] = []
-    serier = {namn: _hamta(sid) for namn, sid in SERIER.items()}
+    def klipp(s):
+        if s is None or asof is None:
+            return s
+        s = s[s.index < pd.Timestamp(asof)]
+        return s if len(s) > 10 else None
+    serier = {namn: klipp(_hamta(sid)) for namn, sid in SERIER.items()}
     if serier.get("nominell10") is None or serier.get("breakeven10") is None:
         return None
 
@@ -134,7 +142,7 @@ def hamta_makro() -> dict | None:
     # publicerat värde var 3,4 — indexnivåerna revideras och stämmer inte
     # alltid med den offentliggjorda takten. Räkna bara själv om pc1 fallerar.
     def takt(nyckel: str, serie_id: str):
-        s_pc1 = _hamta(serie_id, "pc1")
+        s_pc1 = klipp(_hamta(serie_id, "pc1"))
         if s_pc1 is not None and abs(float(s_pc1.iloc[-1])) < 50:
             return round(float(s_pc1.iloc[-1]), 2), s_pc1.index[-1]
         varningar_makro.append(f"{serie_id}: pc1 gick inte att hämta, årstakten räknad ur nivåindexet")

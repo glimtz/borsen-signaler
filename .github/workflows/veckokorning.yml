@@ -14,6 +14,11 @@ on:
       - "data/**"
       - "README.md"
   workflow_dispatch:
+    inputs:
+      asof:
+        description: "Rekonstruera aldre datum (YYYY-MM-DD, kommaseparerade). Tomt = nulaget."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -37,7 +42,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Bygg underlaget
-        run: python build.py
+        run: python build.py ${{ inputs.asof && format('--asof {0}', inputs.asof) || '' }}
 
       - name: Committa om något ändrats
         run: |
@@ -47,7 +52,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "Inget nytt att committa."
           else
-            git commit -m "Veckokörning $(date -u +%Y-%m-%d)"
+            git commit -m "${{ inputs.asof && format('Rekonstruktion {0}', inputs.asof) || 'Veckokörning' }} $(date -u +%Y-%m-%d)"
             # Grenen kan ha flyttat sig sedan checkout (en re-run, eller en
             # push under tiden). Hämta in det och försök igen i stället för
             # att falla på en icke-snabbspolad push.

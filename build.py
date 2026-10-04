@@ -77,8 +77,10 @@ def korg(df: pd.DataFrame, tickers: list[str], namn: str) -> pd.Series | None:
     return (bit / bit.iloc[0] * 100).mean(axis=1)
 
 
-def bygg_serier() -> dict[str, dict]:
+def bygg_serier(asof: str | None = None) -> dict[str, dict]:
     df = hamta(alla_tickers())
+    if asof:                       # bara stängningar FORE den morgonen
+        df = df[df.index < pd.Timestamp(asof)]
     if FX_USDSEK in df.columns:
         df[FX_USDSEK] = df[FX_USDSEK].ffill()
 
@@ -245,8 +247,9 @@ def berakna(serier: dict[str, dict], kalendrar: dict[str, list[str]]) -> list[di
 
 # ------------------------------------------------------------------ utdata
 
-def main() -> None:
-    serier = bygg_serier()
+def main(asof: str | None = None) -> None:
+    varningar.clear()
+    serier = bygg_serier(asof)
     kalendrar: dict[str, list[str]] = {}
     rader = berakna(serier, kalendrar)
     # Färskheten styrs av jämförelseindexet, inte av den serie som råkar sträcka sig längst
@@ -276,7 +279,7 @@ def main() -> None:
     }
 
     try:
-        makro = hamta_makro()
+        makro = hamta_makro(asof)
     except Exception as fel:                     # makro får aldrig fälla bygget
         makro, _ = None, varningar.append(f"Makrohämtningen fallerade: {fel}")
     if makro:
@@ -284,10 +287,16 @@ def main() -> None:
     else:
         varningar.append("Makrodata från FRED kunde inte hämtas — regimen utelämnas.")
 
+    if asof:
+        ut["uppdaterad"] = asof
+        ut["rekonstruerad"] = True
+
     os.makedirs("data/history", exist_ok=True)
-    with open("data/latest.json", "w", encoding="utf-8") as f:
-        json.dump(ut, f, ensure_ascii=False, separators=(",", ":"))
-    with open(f"data/history/{date.today():%Y-%m-%d}.json", "w", encoding="utf-8") as f:
+    if not asof:                   # en rekonstruktion rör aldrig nuläget
+        with open("data/latest.json", "w", encoding="utf-8") as f:
+            json.dump(ut, f, ensure_ascii=False, separators=(",", ":"))
+    stamp = asof or f"{date.today():%Y-%m-%d}"
+    with open(f"data/history/{stamp}.json", "w", encoding="utf-8") as f:
         json.dump(ut, f, ensure_ascii=False, separators=(",", ":"))
 
     print(f"{len(rader)} instrument, kursdata till {ut['asof']}, "
@@ -302,4 +311,16 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    ap = argparse.ArgumentParser(description="Bygg Branschkompassens underlag.")
+    ap.add_argument("--asof", default="",
+                    help="Ett eller flera datum (YYYY-MM-DD, kommaseparerade). "
+                         "Bygger bilden som den sag ut de morgnarna och skriver "
+                         "bara till data/history/. Utan flaggan byggs nulaget.")
+    datum = [d.strip() for d in ap.parse_args().asof.split(",") if d.strip()]
+    if datum:
+        for d in datum:
+            print(f"--- rekonstruerar {d} ---")
+            main(d)
+    else:
+        main()
