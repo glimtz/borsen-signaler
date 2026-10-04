@@ -63,20 +63,12 @@ jobs:
             python build.py
           fi
 
-      - name: Tom rekonstruktionslistan
-        if: steps.rek.outputs.datum != ''
-        run: |
-          printf '%s\n' \
-            '# Skriv datum har (YYYY-MM-DD, ett per rad eller kommaseparerade) och pusha.' \
-            '# Jobbet bygger da bilden som den sag ut de morgnarna, skriver till' \
-            '# data/history/ och tommer sedan filen at dig. Rader som borjar med # ignoreras.' \
-            > rekonstruera.txt
 
       - name: Committa om något ändrats
         run: |
           git config user.name "branschkompass-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data rekonstruera.txt
+          git add data
           if git diff --staged --quiet; then
             echo "Inget nytt att committa."
           else

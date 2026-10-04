@@ -326,6 +326,9 @@ if __name__ == "__main__":
     datum = [d.strip() for d in ap.parse_args().asof.split(",") if d.strip()]
     if datum:
         for d in datum:
+            if os.path.exists(f"data/history/{d}.json"):
+                print(f"--- {d} finns redan, hoppar over ---")
+                continue
             print(f"--- rekonstruerar {d} ---")
             main(d)
     else:
