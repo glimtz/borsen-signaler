@@ -27,8 +27,11 @@ SERIER = {
     "breakeven10": "T10YIE",   # 10-årig breakeven-inflation
     "forward5y5y": "T5YIFR",   # 5-årig inflationsförväntan om 5 år
     "styrranta": "FEDFUNDS",   # effektiv styrränta, månadsvis
-    "kpi": "CPIAUCSL",         # KPI, nivåindex, månadsvis
-    "karn_kpi": "CPILFESL",    # kärn-KPI, nivåindex, månadsvis
+    # Ej säsongsjusterade index — det är dem BLS räknar den publicerade
+    # årstakten på. De säsongsjusterade (CPIAUCSL/CPILFESL) ger ett par
+    # tiondelar fel mot den siffra som står i tidningen.
+    "kpi": "CPIAUCNS",         # KPI, nivåindex, månadsvis
+    "karn_kpi": "CPILFENS",    # kärn-KPI, nivåindex, månadsvis
     "kurva10_2": "T10Y2Y",     # lutning 10 år minus 2 år
 }
 
