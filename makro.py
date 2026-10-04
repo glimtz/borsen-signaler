@@ -80,9 +80,10 @@ REGIMTEXT = {
 TROSKEL = 0.15
 
 
-def _hamta(serie_id: str) -> pd.Series | None:
+def _hamta(serie_id: str, transformation: str = "") -> pd.Series | None:
+    url = FRED.format(serie_id) + (f"&transformation={transformation}" if transformation else "")
     try:
-        with urllib.request.urlopen(FRED.format(serie_id), timeout=45) as svar:
+        with urllib.request.urlopen(url, timeout=45) as svar:
             rå = svar.read().decode("utf-8")
         df = pd.read_csv(io.StringIO(rå))
     except Exception:
@@ -111,6 +112,7 @@ def _aratakt(nivaserie: pd.Series | None) -> float | None:
 
 
 def hamta_makro() -> dict | None:
+    varningar_makro: list[str] = []
     serier = {namn: _hamta(sid) for namn, sid in SERIER.items()}
     if serier.get("nominell10") is None or serier.get("breakeven10") is None:
         return None
@@ -127,19 +129,33 @@ def hamta_makro() -> dict | None:
         }
         ut["kallor"][namn] = SERIER[namn]
 
-    kpi, karn = serier.get("kpi"), serier.get("karn_kpi")
+    # Årstakten hämtas som FREDs egen pc1-transformation, alltså exakt den
+    # siffra BLS publicerar. Att räkna den själv ur nivåindexet gav 3,69 % när
+    # publicerat värde var 3,4 — indexnivåerna revideras och stämmer inte
+    # alltid med den offentliggjorda takten. Räkna bara själv om pc1 fallerar.
+    def takt(nyckel: str, serie_id: str):
+        s_pc1 = _hamta(serie_id, "pc1")
+        if s_pc1 is not None and abs(float(s_pc1.iloc[-1])) < 50:
+            return round(float(s_pc1.iloc[-1]), 2), s_pc1.index[-1]
+        varningar_makro.append(f"{serie_id}: pc1 gick inte att hämta, årstakten räknad ur nivåindexet")
+        return _aratakt(serier.get(nyckel)), (serier[nyckel].index[-1] if serier.get(nyckel) is not None else None)
+
+    kpi_takt, kpi_datum = takt("kpi", SERIER["kpi"])
+    karn_takt_v, _ = takt("karn_kpi", SERIER["karn_kpi"])
     ut["inflation"] = {
-        "kpi_arstakt": _aratakt(kpi),
-        "karn_arstakt": _aratakt(karn),
-        "datum": kpi.index[-1].strftime("%Y-%m") if kpi is not None else None,
+        "kpi_arstakt": kpi_takt,
+        "karn_arstakt": karn_takt_v,
+        "datum": kpi_datum.strftime("%Y-%m") if kpi_datum is not None else None,
     }
+    if varningar_makro:
+        ut["varningar"] = list(varningar_makro)
     styr = serier.get("styrranta")
     if styr is not None:
         ut["styrranta"] = {"niva": round(float(styr.iloc[-1]), 2),
                            "datum": styr.index[-1].strftime("%Y-%m")}
-        karn_takt = ut["inflation"]["karn_arstakt"]
-        if karn_takt is not None:
-            ut["real_styrranta"] = round(float(styr.iloc[-1]) - karn_takt, 2)
+        kt = ut["inflation"]["karn_arstakt"]
+        if kt is not None:
+            ut["real_styrranta"] = round(float(styr.iloc[-1]) - kt, 2)
 
     # Vad drev den långa räntan de senaste tre månaderna?
     d_nom = ut.get("nominell10", {}).get("d3m")
