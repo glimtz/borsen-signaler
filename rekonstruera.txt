@@ -1,0 +1,8 @@
+# Skriv datum har (YYYY-MM-DD, ett per rad eller kommaseparerade) och pusha.
+# Jobbet bygger da bilden som den sag ut de morgnarna, skriver till
+# data/history/ och tommer sedan filen at dig. Rader som borjar med # ignoreras.
+2026-08-31
+2026-09-07
+2026-09-14
+2026-09-21
+2026-09-28

@@ -41,14 +41,42 @@ jobs:
       - name: Installera beroenden
         run: pip install -r requirements.txt
 
+      - name: Las av onskade rekonstruktioner
+        id: rek
+        run: |
+          # Datum kan komma antingen fran rekonstruera.txt eller fran
+          # Run workflow-faltet. Filen vinner nar bada ar ifyllda.
+          FRAN_FIL=""
+          if [ -f rekonstruera.txt ]; then
+            FRAN_FIL=$(grep -v '^[[:space:]]*#' rekonstruera.txt | tr '\n' ',' \
+                       | tr -s ',' | sed 's/^,//; s/,$//' | tr -d '[:space:]')
+          fi
+          DATUM="${FRAN_FIL:-${{ inputs.asof }}}"
+          echo "datum=$DATUM" >> "$GITHUB_OUTPUT"
+          if [ -n "$DATUM" ]; then echo "Rekonstruerar: $DATUM"; else echo "Bygger nulaget."; fi
+
       - name: Bygg underlaget
-        run: python build.py ${{ inputs.asof && format('--asof {0}', inputs.asof) || '' }}
+        run: |
+          if [ -n "${{ steps.rek.outputs.datum }}" ]; then
+            python build.py --asof "${{ steps.rek.outputs.datum }}"
+          else
+            python build.py
+          fi
+
+      - name: Tom rekonstruktionslistan
+        if: steps.rek.outputs.datum != ''
+        run: |
+          printf '%s\n' \
+            '# Skriv datum har (YYYY-MM-DD, ett per rad eller kommaseparerade) och pusha.' \
+            '# Jobbet bygger da bilden som den sag ut de morgnarna, skriver till' \
+            '# data/history/ och tommer sedan filen at dig. Rader som borjar med # ignoreras.' \
+            > rekonstruera.txt
 
       - name: Committa om något ändrats
         run: |
           git config user.name "branschkompass-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data
+          git add data rekonstruera.txt
           if git diff --staged --quiet; then
             echo "Inget nytt att committa."
           else
