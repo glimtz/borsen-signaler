@@ -123,7 +123,7 @@ def percentilrang(varden: list[float], v: float) -> float:
     return under / (len(varden) - 1) * 100 if len(varden) > 1 else 50.0
 
 
-def berakna(serier: dict[str, dict]) -> list[dict]:
+def berakna(serier: dict[str, dict], kalendrar: dict[str, list[str]]) -> list[dict]:
     rader = []
     for nyckel, post in serier.items():
         s = post["serie"]
@@ -147,7 +147,14 @@ def berakna(serier: dict[str, dict]) -> list[dict]:
         lo, hi = float(fonster52.min()), float(fonster52.max())
         r["lo52"], r["hi52"] = round(lo, 2), round(hi, 2)
         r["lage52"] = round((px - lo) / (hi - lo) * 100, 1) if hi > lo else 50.0
-        r["serie"] = [round(float(v), 2) for v in s.iloc[-SPARK_DAGAR:]]
+        fonster = s.iloc[-SPARK_DAGAR:]
+        r["serie"] = [round(float(v), 2) for v in fonster]
+        # Vilken handelskalender serien följer. Sparas en gång per kalender i
+        # utdatan så att dashboarden kan räkna avkastning från ett givet datum
+        # utan att gissa vilka dagar som var handelsdagar.
+        r["kalender"] = "|".join(d.strftime("%Y%m%d") for d in fonster.index[:1]) + \
+                        f"-{len(fonster)}-" + fonster.index[-1].strftime("%Y%m%d")
+        kalendrar.setdefault(r["kalender"], [d.strftime("%Y-%m-%d") for d in fonster.index])
         rader.append(r)
 
     index = {r["ticker"]: r for r in rader}
@@ -239,7 +246,8 @@ def berakna(serier: dict[str, dict]) -> list[dict]:
 
 def main() -> None:
     serier = bygg_serier()
-    rader = berakna(serier)
+    kalendrar: dict[str, list[str]] = {}
+    rader = berakna(serier, kalendrar)
     # Färskheten styrs av jämförelseindexet, inte av den serie som råkar sträcka sig längst
     sista = serier[BENCHMARK]["serie"].index[-1]
     efterslapande = sorted(
@@ -262,6 +270,7 @@ def main() -> None:
             "defensiva_i_trend": sum(1 for r in rader if r["ticker"] in DEFENSIVA and (r["px_ma150"] or 0) > 0),
         },
         "varningar": varningar,
+        "kalendrar": kalendrar,
         "rader": rader,
     }
 
