@@ -1,4 +1,3 @@
 # Skriv datum har (YYYY-MM-DD, ett per rad eller kommaseparerade) och pusha.
 # Datum som redan finns i data/history/ hoppas over, sa listan kan sta kvar.
 # Satt ! framfor ett datum for att bygga om det anda.
-!2026-08-31

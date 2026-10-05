@@ -46,8 +46,10 @@ jobs:
         run: |
           # Datum kan komma antingen fran rekonstruera.txt eller fran
           # Run workflow-faltet. Filen vinner nar bada ar ifyllda.
+          # Filen lases BARA vid push. Den schemalagda mandagskorningen
+          # bygger alltid nulaget, aven om datum ligger kvar i filen.
           FRAN_FIL=""
-          if [ -f rekonstruera.txt ]; then
+          if [ "${{ github.event_name }}" = "push" ] && [ -f rekonstruera.txt ]; then
             FRAN_FIL=$(grep -v '^[[:space:]]*#' rekonstruera.txt | tr '\n' ',' \
                        | tr -s ',' | sed 's/^,//; s/,$//' | tr -d '[:space:]')
           fi
